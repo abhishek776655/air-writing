@@ -3,12 +3,16 @@ import cv2
 import numpy as np
 import uuid
 import os
+import math 
 
 mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 
 cap = cv2.VideoCapture(0)
 far_point = []
+temp_far_points = []
+def dist(point1, point2):
+    return math.sqrt((point1[0] - point2[0])*(point1[0] - point2[0]) + (point1[1] - point2[1])*(point1[1] - point2[1]) )
 
 with mp_hands.Hands(min_detection_confidence=0.8, min_tracking_confidence=0.5, max_num_hands=1) as hands:
     while cap.isOpened():
@@ -41,12 +45,34 @@ with mp_hands.Hands(min_detection_confidence=0.8, min_tracking_confidence=0.5, m
             for num, hand in enumerate(results.multi_hand_landmarks):
                 for hand_landmarks in results.multi_hand_landmarks:
                     #                     print('hand_landmarks:', hand_landmarks)
-                    far_point.append((int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x * image_width), int(
-                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y * image_height)))
+                    distance = dist((int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_MCP].x * image_width), int(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_MCP].y * image_height)), (int(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].x * image_width), int(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].y * image_height)))
+                    print(far_point)
+                    distance_erase_all = dist((int(hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP].x * image_width), int(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP].y * image_height)), (int(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].x * image_width), int(
+                        hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].y * image_height)))
+                    
+                    if(distance_erase_all < 25):
+                        far_point.clear()
+                        temp_far_points.clear()
+                    if distance < 25:
+                        temp_far_points.append((int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x * image_width), int(
+                            hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y * image_height)))
+                    else:
+                        if len(temp_far_points) != 0:
+                            far_point.append(temp_far_points)
+                            temp_far_points = []
 
-                    for j in range(len(far_point) - 1):
-                        cv2.line(image, far_point[j],
-                                 far_point[j+1], (255, 5, 255), 10)
+                    for j in range(len(temp_far_points) - 1):
+                        cv2.line(image, temp_far_points[j],
+                                 temp_far_points[j+1], (255, 5, 255), 10)
+
+                    for i in range(len(far_point)):
+                        for j in range(len(far_point[i]) - 1):
+                            cv2.line(image, far_point[i][j],
+                                 far_point[i][j+1], (255, 5, 255), 10)
+
 
 #                     print(
 #                         f'Index finger tip coordinates: (',

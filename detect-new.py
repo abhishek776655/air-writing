@@ -7,6 +7,8 @@ import torch
 import torch.backends.cudnn as cudnn
 from numpy import random
 
+import mediapipe as mp
+
 from models.experimental import attempt_load
 from utils.datasets import LoadStreams, LoadImages
 from utils.general import check_img_size, non_max_suppression, apply_classifier, scale_coords, xyxy2xywh, \
@@ -14,6 +16,8 @@ from utils.general import check_img_size, non_max_suppression, apply_classifier,
 from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_synchronized
 
+mp_drawing = mp.solutions.drawing_utils
+mp_hands = mp.solutions.hands
 
 def detect(save_img=False):
     source, weights, view_img, save_txt, imgsz = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size
@@ -125,6 +129,8 @@ def detect(save_img=False):
                 print(xyxyInt)
                 croppedImage = croppedImage[xyxyInt[1]
                     :xyxyInt[3], xyxyInt[0]:xyxyInt[2]]
+                
+                #after detection
                 min_YCrCb = np.array([0, 40, 50], np.uint8)
                 max_YCrCb = np.array([50, 250, 255], np.uint8)
                 imageYCrCb = cv2.cvtColor(croppedImage, cv2.COLOR_BGR2HSV)
@@ -172,45 +178,91 @@ def detect(save_img=False):
                     tempFarPoints.append(extTop1)
 
                 elif classDetected == 1:
-                    isDrawing = False
-                    if len(tempFarPoints) != 0:
-                        far_points.append(tempFarPoints)
-                        tempFarPoints = []
-                        frameCounter = frameCounter + 1
-                        if(frameCounter <= 15):
-                            tempArray = []
-                            index = len(far_points) - 1
-                            print(range(len(far_points[index])))
-                            for i in range(len(far_points[index])):
-                                print(
-                                    ".asnkfk,abkjaskdbkjadbsbvkjbasj.bvbbkjvbjebfjk.bNSDb,")
-                                if i == 0 or i == len(far_points[index]) - 1:
-                                    tempArray.append(far_points[index][i])
-                                else:
-                                    avgx = int(
-                                        (far_points[index][i-1][0] + far_points[index][i+1][0])/2)
-                                    avgy = int(
-                                        (far_points[index][i-1][1] + far_points[index][i+1][1])/2)
-                                    tempArray.append((avgx, avgy))
-                            far_points[index] = tempArray
-                        else:
-                            frameCounter = 0
+                    #after cropping
+
+                    with mp_hands.Hands(min_detection_confidence=0.8, min_tracking_confidence=0.5, max_num_hands=1) as hands:
+
+                        # BGR 2 RGB
+                        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+                        # Flip on horizontal
+                        image = cv2.flip(image, 1)
+
+                        # Set flag
+                        image.flags.writeable = False
+
+                        # Detections
+                        results = hands.process(image)
+
+                        # Set flag to true
+                        image.flags.writeable = True
+
+                        # RGB 2 BGR
+                        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+                        # Detections
+                        print(results)
+                        image_height, image_width, _ = image.shape
+
+                        # Rendering results
+                        if results.multi_hand_landmarks:
+                            for num, hand in enumerate(results.multi_hand_landmarks):
+                                for hand_landmarks in results.multi_hand_landmarks:
+                                    #                     print('hand_landmarks:', hand_landmarks)
+                                    far_points.append((int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x * image_width), int(
+                                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y * image_height)))
+
+                                    for j in range(len(far_points) - 1):
+                                        cv2.line(image, far_points[j],
+                                                far_points[j+1], (255, 5, 255), 10)
+                                mp_drawing.draw_landmarks(image, hand, mp_hands.HAND_CONNECTIONS,
+                                                        mp_drawing.DrawingSpec(
+                                                            color=(121, 22, 76), thickness=2, circle_radius=4),
+                                                        mp_drawing.DrawingSpec(
+                                                            color=(250, 44, 250), thickness=2, circle_radius=2),
+                                                        )
+
+
+                    # old rendering code
+                    # isDrawing = False
+                    # if len(tempFarPoints) != 0:
+                    #     far_points.append(tempFarPoints)
+                    #     tempFarPoints = []
+                    #     frameCounter = frameCounter + 1
+                    #     if(frameCounter <= 15):
+                    #         tempArray = []
+                    #         index = len(far_points) - 1
+                    #         print(range(len(far_points[index])))
+                    #         for i in range(len(far_points[index])):
+                    #             print(
+                    #                 ".asnkfk,abkjaskdbkjadbsbvkjbasj.bvbbkjvbjebfjk.bNSDb,")
+                    #             if i == 0 or i == len(far_points[index]) - 1:
+                    #                 tempArray.append(far_points[index][i])
+                    #             else:
+                    #                 avgx = int(
+                    #                     (far_points[index][i-1][0] + far_points[index][i+1][0])/2)
+                    #                 avgy = int(
+                    #                     (far_points[index][i-1][1] + far_points[index][i+1][1])/2)
+                    #                 tempArray.append((avgx, avgy))
+                    #         far_points[index] = tempArray
+                    #     else:
+                    #         frameCounter = 0
 
                 # cv2.line(canvas, far_points[i], far_points[i+1], (0,0,0), 20)
                 # if isDrawing:
                 #     # tempFarPoints.append(extTop1)
                 #     # far_points.append(extTop1)
 
-                if len(far_points) == 0 or isDrawing:
-                    for i in range(len(tempFarPoints)-1):
-                        cv2.line(image, tempFarPoints[i],
-                                 tempFarPoints[i+1], (255, 5, 255), 10)
+                # if len(far_points) == 0 or isDrawing:
+                #     for i in range(len(tempFarPoints)-1):
+                #         cv2.line(image, tempFarPoints[i],
+                #                  tempFarPoints[i+1], (255, 5, 255), 10)
 
-                if len(far_points) != 0 or isDrawing:
-                    for i in range(len(far_points)-1):
-                        for j in range(len(far_points[i]) - 1):
-                            cv2.line(image, far_points[i][j],
-                                     far_points[i][j+1], (255, 5, 255), 10)
+                # if len(far_points) != 0 or isDrawing:
+                #     for i in range(len(far_points)-1):
+                #         for j in range(len(far_points[i]) - 1):
+                #             cv2.line(image, far_points[i][j],
+                #                      far_points[i][j+1], (255, 5, 255), 10)
 
                 for c in det[:, -1].unique():
                     n = (det[:, -1] == c).sum()  # detections per class
